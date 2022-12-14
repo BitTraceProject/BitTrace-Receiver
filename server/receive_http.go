@@ -21,9 +21,7 @@ type (
 	ReceiverServer struct {
 		*gin.Engine
 
-		metaServerAddr        string
-		mqServerAddr          string
-		resolverMgrServerAddr string
+		conf *config.ReceiverConfig
 
 		metaClient        *rpc.Client
 		mqClient          *rpc.Client
@@ -51,12 +49,10 @@ var (
 		quitPath)
 )
 
-func NewReceiverServer(r *gin.Engine, conf config.ReceiverConfig) *ReceiverServer {
+func NewReceiverServer(r *gin.Engine, conf *config.ReceiverConfig) *ReceiverServer {
 	s := &ReceiverServer{
-		Engine:                r,
-		metaServerAddr:        conf.MetaServerAddr,
-		mqServerAddr:          conf.MqServerAddr,
-		resolverMgrServerAddr: conf.ResolverMgrServerAddr,
+		Engine: r,
+		conf:   conf,
 	}
 	err := s.initClient()
 	if err != nil {
@@ -70,19 +66,19 @@ func NewReceiverServer(r *gin.Engine, conf config.ReceiverConfig) *ReceiverServe
 func (s *ReceiverServer) initClient() error {
 	// TODO 一旦某个 client 发生异常可能导致瘫痪，所以要有足够的兜底方式，随时刷新 client
 	// 后面确认一下
-	metaClient, err := jsonrpc.Dial("tcp", s.metaServerAddr)
+	metaClient, err := jsonrpc.Dial("tcp", s.conf.MetaServerAddr)
 	if err != nil {
 		return err
 	}
 	s.metaClient = metaClient
 
-	mqClient, err := jsonrpc.Dial("tcp", s.mqServerAddr)
+	mqClient, err := jsonrpc.Dial("tcp", s.conf.MqServerAddr)
 	if err != nil {
 		return err
 	}
 	s.mqClient = mqClient
 
-	resolverMgrClient, err := jsonrpc.Dial("tcp", s.resolverMgrServerAddr)
+	resolverMgrClient, err := jsonrpc.Dial("tcp", s.conf.ResolverMgrServerAddr)
 	if err != nil {
 		return err
 	}
