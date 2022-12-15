@@ -21,7 +21,7 @@ type (
 	ReceiverServer struct {
 		*gin.Engine
 
-		conf *config.ReceiverConfig
+		conf config.ReceiverConfig
 
 		metaClient        *rpc.Client
 		mqClient          *rpc.Client
@@ -49,7 +49,7 @@ var (
 		quitPath)
 )
 
-func NewReceiverServer(r *gin.Engine, conf *config.ReceiverConfig) *ReceiverServer {
+func NewReceiverServer(r *gin.Engine, conf config.ReceiverConfig) *ReceiverServer {
 	s := &ReceiverServer{
 		Engine: r,
 		conf:   conf,
