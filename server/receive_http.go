@@ -43,7 +43,7 @@ const (
 var (
 	helpTextIndex    = fmt.Sprintf("Exporter Server Path: %s", exporterPath)
 	helpTextExporter = fmt.Sprintf(`RelativePaths of Exporter Server include:
-	- %s, join a exporter.\n
+	- %s, join a exporter.
 	- %s, receive data package from a identity exporter.
 	- %s, quit a exporter."`,
 		joinPath,
@@ -93,7 +93,8 @@ func (s *ReceiverServer) register() {
 	s.GET("/", func(c *gin.Context) {
 		c.String(http.StatusOK, helpTextIndex)
 	})
-	r := s.Group(exporterPath, func(c *gin.Context) {
+	r := s.Group(exporterPath)
+	r.GET("/", func(c *gin.Context) {
 		c.String(http.StatusOK, helpTextExporter)
 	})
 	r.GET(joinPath, s.joinHandleFunc)
@@ -159,6 +160,7 @@ func (s *ReceiverServer) dataHandleFunc(c *gin.Context) {
 	if err != nil {
 		log.Printf("[dataHandleFunc]read body err:%v", err)
 		resp.OK = false
+		c.JSON(http.StatusOK, *resp)
 		return
 	}
 	var req protocol.ReceiverDataRequest
@@ -190,6 +192,7 @@ func (s *ReceiverServer) dataHandleFunc(c *gin.Context) {
 		// 如果 exporter 未注册直接返回不处理
 		// TODO 由于是内部服务，所以这里不必考虑 DoS 攻击
 		if !getValueReply.OK {
+			log.Printf("[dataHandleFunc]get value not ok:%v", getValueReply)
 			return
 		}
 		// 根据对应 resolver，将数据放入 mq，异步调用 mq

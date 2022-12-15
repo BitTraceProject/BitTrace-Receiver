@@ -72,7 +72,7 @@ func (api *MqServerAPI) PushMessage(args *protocol.MqPushMessageArgs, reply *pro
 }
 
 func (api *MqServerAPI) FilterMessage(args *protocol.MqFilterMessageArgs, reply *protocol.MqFilterMessageReply) error {
-	if mq, ok := api.queueSet[args.Tag]; !ok || !mq.HasNext() {
+	if mq, ok := api.queueSet[args.Tag]; !ok {
 		reply.HasNext = false
 		reply.OK = false
 	} else {
