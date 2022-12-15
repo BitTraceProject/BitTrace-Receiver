@@ -30,12 +30,14 @@ type (
 )
 
 const (
-
 	// Exporter Server
 	exporterPath = "/exporter"
 	joinPath     = "/join"
 	dataPath     = "/data"
 	quitPath     = "/quit"
+
+	exporterTagKey = "exporter_tag"
+	lazyQuitKey    = "lazy_quit"
 )
 
 var (
@@ -110,7 +112,7 @@ func (s *ReceiverServer) joinHandleFunc(c *gin.Context) {
 		c.JSON(http.StatusOK, *resp)
 	}(resp)
 	// 读取请求 exporter tag
-	exporterTag := c.Query("exporter_tag")
+	exporterTag := c.Query(exporterTagKey)
 	// 根据 tag 查询 exporter 是否已注册，调用 meta
 	getValueArgs := &protocol.MetaGetValueArgs{Key: exporterTag}
 	var getValueReply protocol.MetaGetValueReply
@@ -209,8 +211,12 @@ func (s *ReceiverServer) dataHandleFunc(c *gin.Context) {
 func (s *ReceiverServer) quitHandleFunc(c *gin.Context) {
 	var resp = new(protocol.ReceiverQuitResponse)
 	// 读取请求 exporter tag
-	exporterTag := c.Query("exporter_tag")
-	lazyQuit := c.Value("lazy_quit").(bool)
+	exporterTag := c.Query(exporterTagKey)
+	lazyQuit := false
+	lazyQuitValue := c.Query(lazyQuitKey)
+	if lazyQuitValue == "true" {
+		lazyQuit = true
+	}
 	// 根据 tag 查询 exporter 是否已注册，调用 meta
 	getValueArgs := &protocol.MetaGetValueArgs{Key: exporterTag}
 	var getValueReply protocol.MetaGetValueReply
