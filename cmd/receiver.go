@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/BitTraceProject/BitTrace-Receiver/server"
 	"github.com/BitTraceProject/BitTrace-Types/pkg/config"
+
 	"github.com/gin-gonic/gin"
 )
 
