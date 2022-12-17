@@ -3,7 +3,7 @@ module github.com/BitTraceProject/BitTrace-Receiver
 go 1.18
 
 require (
-	github.com/BitTraceProject/BitTrace-Types v0.0.0-20221217091707-068ffad39cf1
+	github.com/BitTraceProject/BitTrace-Types v0.0.0-20221217121029-a62ae0e46a99
 	github.com/gin-gonic/gin v1.8.1
 )
 
