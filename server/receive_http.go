@@ -9,6 +9,7 @@ import (
 	"net/rpc"
 	"net/rpc/jsonrpc"
 
+	"github.com/BitTraceProject/BitTrace-Types/pkg/common"
 	"github.com/BitTraceProject/BitTrace-Types/pkg/config"
 	"github.com/BitTraceProject/BitTrace-Types/pkg/protocol"
 
@@ -56,37 +57,8 @@ func NewReceiverServer(r *gin.Engine, conf config.ReceiverConfig) *ReceiverServe
 		Engine: r,
 		conf:   conf,
 	}
-	err := s.initClient()
-	if err != nil {
-		panic(fmt.Errorf("[NewReceiverServer]err:%v", err))
-	}
 	s.register()
-	go s.refreshClient() // 定时刷新 client
 	return s
-}
-
-func (s *ReceiverServer) initClient() error {
-	// TODO 一旦某个 client 发生异常可能导致瘫痪，所以要有足够的兜底方式，随时刷新 client
-	// 后面确认一下
-	metaClient, err := jsonrpc.Dial("tcp", s.conf.MetaServerAddr)
-	if err != nil {
-		return err
-	}
-	s.metaClient = metaClient
-
-	mqClient, err := jsonrpc.Dial("tcp", s.conf.MqServerAddr)
-	if err != nil {
-		return err
-	}
-	s.mqClient = mqClient
-
-	resolverMgrClient, err := jsonrpc.Dial("tcp", s.conf.ResolverMgrServerAddr)
-	if err != nil {
-		return err
-	}
-	s.resolverMgrClient = resolverMgrClient
-
-	return nil
 }
 
 func (s *ReceiverServer) register() {
@@ -102,10 +74,6 @@ func (s *ReceiverServer) register() {
 	r.GET(quitPath, s.quitHandleFunc)
 }
 
-func (s *ReceiverServer) refreshClient() {
-	// TODO 通过各个服务提供的 healthcheck 接口，定时刷新 rpc  client
-}
-
 func (s *ReceiverServer) joinHandleFunc(c *gin.Context) {
 	var resp = new(protocol.ReceiverJoinResponse)
 	defer func(resp *protocol.ReceiverJoinResponse) {
@@ -117,7 +85,7 @@ func (s *ReceiverServer) joinHandleFunc(c *gin.Context) {
 	// 根据 tag 查询 exporter 是否已注册，调用 meta
 	getValueArgs := &protocol.MetaGetValueArgs{Key: exporterTag}
 	var getValueReply protocol.MetaGetValueReply
-	err := s.metaClient.Call("MetaServerAPI.GetValue", getValueArgs, &getValueReply)
+	err := s.CallMetaServer("MetaServerAPI.GetValue", getValueArgs, &getValueReply)
 	if err != nil {
 		resp.OK = false
 		resp.Msg = fmt.Sprintf("[joinHandleFunc]call meta error:%v", err)
@@ -131,7 +99,7 @@ func (s *ReceiverServer) joinHandleFunc(c *gin.Context) {
 	// 如果未注册，则先为其分配 resolver，调用 resolver-mgr
 	startArgs := &protocol.ResolverStartArgs{ExporterTag: exporterTag}
 	var startReply protocol.ResolverStartReply
-	err = s.resolverMgrClient.Call("ResolverMgrServerAPI.Start", startArgs, &startReply)
+	err = s.CallResolverMgrServer("ResolverMgrServerAPI.Start", startArgs, &startReply)
 	if err != nil {
 		resp.OK = false
 		resp.Msg = fmt.Sprintf("[joinHandleFunc]call resolver mgr error:%v", err)
@@ -140,7 +108,7 @@ func (s *ReceiverServer) joinHandleFunc(c *gin.Context) {
 	// 更新元信息，调用 meta
 	setValueArgs := &protocol.MetaSetValueArgs{Key: exporterTag, Value: startReply.ResolverTag}
 	var setValueReply protocol.MetaSetValueReply
-	err = s.metaClient.Call("MetaServerAPI.SetValue", setValueArgs, &setValueReply)
+	err = s.CallMetaServer("MetaServerAPI.SetValue", setValueArgs, &setValueReply)
 	if err != nil {
 		resp.OK = false
 		resp.Msg = fmt.Sprintf("[joinHandleFunc]call meta error:%v", err)
@@ -183,7 +151,7 @@ func (s *ReceiverServer) dataHandleFunc(c *gin.Context) {
 		// 根据 tag 验证 exporter 是否已注册，异步调用 meta
 		getValueArgs := &protocol.MetaGetValueArgs{Key: exporterTag}
 		var getValueReply protocol.MetaGetValueReply
-		err = s.metaClient.Call("MetaServerAPI.GetValue", getValueArgs, &getValueReply)
+		err = s.CallMetaServer("MetaServerAPI.GetValue", getValueArgs, &getValueReply)
 		if err != nil {
 			// TODO 这里加上重试机制，尽量保证不会出错
 			log.Printf("[dataHandleFunc]call meta error:%v", err)
@@ -203,7 +171,7 @@ func (s *ReceiverServer) dataHandleFunc(c *gin.Context) {
 		}
 		pushMessageArgs := &protocol.MqPushMessageArgs{Message: message}
 		var pushMessageReply protocol.MqPushMessageReply
-		err = s.mqClient.Call("MqServerAPI.PushMessage", pushMessageArgs, &pushMessageReply)
+		err = s.CallMqServer("MqServerAPI.PushMessage", pushMessageArgs, &pushMessageReply)
 		if err != nil {
 			// TODO 这里加上重试机制，尽量保证不会出错
 			log.Printf("[dataHandleFunc]call mq error:%v", err)
@@ -223,7 +191,7 @@ func (s *ReceiverServer) quitHandleFunc(c *gin.Context) {
 	// 根据 tag 查询 exporter 是否已注册，调用 meta
 	getValueArgs := &protocol.MetaGetValueArgs{Key: exporterTag}
 	var getValueReply protocol.MetaGetValueReply
-	err := s.metaClient.Call("MetaServerAPI.GetValue", getValueArgs, &getValueReply)
+	err := s.CallMetaServer("MetaServerAPI.GetValue", getValueArgs, &getValueReply)
 	if err != nil {
 		resp.OK = false
 		resp.Msg = fmt.Sprintf("[quitHandleFunc]call meta error:%v", err)
@@ -243,7 +211,7 @@ func (s *ReceiverServer) quitHandleFunc(c *gin.Context) {
 		// 关闭对应 resolver，调用 resolver-mgr
 		shutdownArgs := &protocol.ResolverShutdownArgs{ExporterTag: exporterTag, LazyShutdown: lazyShutdown}
 		var shutdownReply protocol.ResolverShutdownReply
-		err := s.resolverMgrClient.Call("ResolverMgrServerAPI.Shutdown", shutdownArgs, &shutdownReply)
+		err := s.CallResolverMgrServer("ResolverMgrServerAPI.Shutdown", shutdownArgs, &shutdownReply)
 		if err != nil {
 			// TODO 这里加上重试机制，尽量保证不会出错
 			log.Printf("[quitHandleFunc]call resolver mgr error:%v", err)
@@ -252,10 +220,52 @@ func (s *ReceiverServer) quitHandleFunc(c *gin.Context) {
 		// 更新元信息，调用 meta
 		delKeyArgs := &protocol.MetaDelKeyArgs{Key: exporterTag}
 		var delKeyReply protocol.MetaDelKeyReply
-		err = s.metaClient.Call("MetaServerAPI.DelKey", delKeyArgs, &delKeyReply)
+		err = s.CallMetaServer("MetaServerAPI.DelKey", delKeyArgs, &delKeyReply)
 		if err != nil {
 			// TODO 这里加上重试机制，尽量保证不会出错
 			log.Printf("[quitHandleFunc]call meta error:%v", err)
 		}
 	}(getValueReply.Value, lazyQuit)
+}
+
+func (s *ReceiverServer) CallMetaServer(serviceMethod string, args any, reply any) error {
+	// 由于本身 rpc 连接是无状态的，因此这里不必加锁就行
+	return common.ExecuteFunctionByRetry(func() error {
+		if s.metaClient == nil {
+			metaClient, err := jsonrpc.Dial("tcp", s.conf.MetaServerAddr)
+			if err != nil {
+				return err
+			}
+			s.metaClient = metaClient
+		}
+		return s.metaClient.Call(serviceMethod, args, reply)
+	})
+}
+
+func (s *ReceiverServer) CallMqServer(serviceMethod string, args any, reply any) error {
+	// 由于本身 rpc 连接是无状态的，因此这里不必加锁就行
+	return common.ExecuteFunctionByRetry(func() error {
+		if s.mqClient == nil {
+			mqClient, err := jsonrpc.Dial("tcp", s.conf.MqServerAddr)
+			if err != nil {
+				return err
+			}
+			s.mqClient = mqClient
+		}
+		return s.mqClient.Call(serviceMethod, args, reply)
+	})
+}
+
+func (s *ReceiverServer) CallResolverMgrServer(serviceMethod string, args any, reply any) error {
+	// 由于本身 rpc 连接是无状态的，因此这里不必加锁就行
+	return common.ExecuteFunctionByRetry(func() error {
+		if s.resolverMgrClient == nil {
+			resolverMgrClient, err := jsonrpc.Dial("tcp", s.conf.ResolverMgrServerAddr)
+			if err != nil {
+				return err
+			}
+			s.resolverMgrClient = resolverMgrClient
+		}
+		return s.resolverMgrClient.Call(serviceMethod, args, reply)
+	})
 }
