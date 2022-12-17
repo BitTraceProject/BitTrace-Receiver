@@ -231,41 +231,53 @@ func (s *ReceiverServer) quitHandleFunc(c *gin.Context) {
 func (s *ReceiverServer) CallMetaServer(serviceMethod string, args any, reply any) error {
 	// 由于本身 rpc 连接是无状态的，因此这里不必加锁就行
 	return common.ExecuteFunctionByRetry(func() error {
+		var err error
 		if s.metaClient == nil {
-			metaClient, err := jsonrpc.Dial("tcp", s.conf.MetaServerAddr)
+			s.metaClient, err = jsonrpc.Dial("tcp", s.conf.MetaServerAddr)
 			if err != nil {
 				return err
 			}
-			s.metaClient = metaClient
 		}
-		return s.metaClient.Call(serviceMethod, args, reply)
+		err = s.metaClient.Call(serviceMethod, args, reply)
+		if err != nil {
+			s.metaClient = nil
+		}
+		return err
 	})
 }
 
 func (s *ReceiverServer) CallMqServer(serviceMethod string, args any, reply any) error {
 	// 由于本身 rpc 连接是无状态的，因此这里不必加锁就行
 	return common.ExecuteFunctionByRetry(func() error {
+		var err error
 		if s.mqClient == nil {
-			mqClient, err := jsonrpc.Dial("tcp", s.conf.MqServerAddr)
+			s.mqClient, err = jsonrpc.Dial("tcp", s.conf.MqServerAddr)
 			if err != nil {
 				return err
 			}
-			s.mqClient = mqClient
 		}
-		return s.mqClient.Call(serviceMethod, args, reply)
+		err = s.mqClient.Call(serviceMethod, args, reply)
+		if err != nil {
+			s.mqClient = nil
+		}
+		return err
 	})
 }
 
 func (s *ReceiverServer) CallResolverMgrServer(serviceMethod string, args any, reply any) error {
 	// 由于本身 rpc 连接是无状态的，因此这里不必加锁就行
 	return common.ExecuteFunctionByRetry(func() error {
+		var err error
 		if s.resolverMgrClient == nil {
-			resolverMgrClient, err := jsonrpc.Dial("tcp", s.conf.ResolverMgrServerAddr)
+			s.resolverMgrClient, err = jsonrpc.Dial("tcp", s.conf.ResolverMgrServerAddr)
 			if err != nil {
 				return err
 			}
-			s.resolverMgrClient = resolverMgrClient
 		}
-		return s.resolverMgrClient.Call(serviceMethod, args, reply)
+		err = s.resolverMgrClient.Call(serviceMethod, args, reply)
+		if err != nil {
+			s.resolverMgrClient = nil
+		}
+		return err
 	})
 }
