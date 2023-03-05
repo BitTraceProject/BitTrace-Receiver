@@ -1,0 +1,76 @@
+version: '3'
+volumes:
+  receiver.bittrace.proj:
+networks:
+  receiver_network.bittrace.proj:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.29.0.0/24
+services:
+  receiver_receiver:
+    image: ${IMAGE:-bittrace/receiver:latest}
+    container_name: receiver.receiver.bittrace.proj
+    hostname: receiver.receiver.bittrace.proj
+    labels:
+      service: receiver.receiver.bittrace.proj
+    restart: on-failure
+    environment:
+      - "MODULE=receiver"
+    volumes:
+      - /root/.bittrace:/root/.bittrace # 这里是绝对目录映射
+    ports:
+      - '8080:8080'
+    networks:
+      receiver_network.bittrace.proj:
+        ipv4_address: 172.29.0.10
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 100000
+        hard: 200000
+
+  receiver_mq:
+    image: ${IMAGE:-bittrace/receiver:latest}
+    container_name: mq.receiver.bittrace.proj
+    hostname: mq.receiver.bittrace.proj
+    labels:
+      service: mq.receiver.bittrace.proj
+    restart: on-failure
+    environment:
+      - "MODULE=mq"
+    volumes:
+      - /root/.bittrace:/root/.bittrace # 这里是绝对目录映射
+    ports:
+      - '8081:8081'
+    networks:
+      receiver_network.bittrace.proj:
+        ipv4_address: 172.29.0.20
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 100000
+        hard: 200000
+
+  receiver_meta:
+    image: ${IMAGE:-bittrace/receiver:latest}
+    container_name: meta.receiver.bittrace.proj
+    hostname: meta.receiver.bittrace.proj
+    labels:
+      service: meta.receiver.bittrace.proj
+    restart: on-failure
+    environment:
+      - "MODULE=meta"
+    volumes:
+      - /root/.bittrace:/root/.bittrace # 这里是绝对目录映射
+    ports:
+      - '8082:8082'
+    networks:
+      receiver_network.bittrace.proj:
+        ipv4_address: 172.29.0.30
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 100000
+        hard: 200000
